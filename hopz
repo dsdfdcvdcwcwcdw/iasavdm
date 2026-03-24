@@ -1,4 +1,3 @@
-
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -17,74 +16,58 @@ public class Win32 {
 
     public const int LEFTDOWN = 0x02;
     public const int LEFTUP   = 0x04;
-    public const int RIGHTDOWN= 0x08;
-    public const int RIGHTUP  = 0x10;
 }
 "@
 
-# 1. Force High Precision
+# 1. Force High Precision (Crucial for the sub-10ms delays in the XML)
 [Win32]::timeBeginPeriod(1)
 
 # 2. Prevent Windows Efficiency Mode Throttling
 $process = [System.Diagnostics.Process]::GetCurrentProcess()
 $process.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::RealTime
 
-# === OPTIMIZED CONFIG - 24-28 CPS ===
+# 3. Ported Logic from 25.xml
+# Format: @(Hold_Down_Delay, Release_Delay)
 $config = @(
-    @(13,19), @(15,21), @(12,23), @(16,18), @(14,20), @(11,26), @(17,19), @(13,22),
-    @(15,18), @(14,24), @(12,21), @(16,20), @(13,23), @(18,17), @(14,19), @(11,27),
-    @(15,22), @(13,20), @(17,18), @(12,25), @(16,19), @(14,21), @(13,18), @(15,23),
-    @(19,24), @(22,18), @(11,32), @(24,19), @(16,27), @(21,22), @(13,29), @(18,25),
-    @(25,17), @(14,28), @(17,26), @(20,21), @(12,31), @(19,23), @(15,27), @(23,18),
-    @(14,20), @(16,22), @(13,19), @(15,24), @(12,23), @(17,20), @(14,18), @(11,29),
-    @(18,19), @(13,21), @(16,23), @(15,19), @(14,25), @(12,22), @(17,18), @(19,21),
-    @(21,26), @(10,34), @(18,22), @(15,28), @(23,19), @(13,25), @(16,24), @(14,27),
-    @(19,20), @(12,29), @(17,23), @(20,18), @(15,26), @(13,31), @(18,21), @(16,25),
-    @(14,22), @(11,28), @(17,19), @(22,20), @(15,23), @(19,24), @(13,27), @(16,21)
+    @(11,16), @(13,33), @(10,13), @(30,26), @(11,13), @(15,29), @(10,15), @(14,31), @(13,10), @(33,35),
+    @(10,19), @(10,34), @(12,7),  @(32,34), @(10,17), @(12,32), @(11,6),  @(38,33), @(9,15),  @(13,28),
+    @(11,3),  @(33,30), @(10,13), @(15,33), @(9,9),   @(32,36), @(10,12), @(14,34), @(11,8),  @(30,31),
+    @(11,16), @(13,33), @(11,6),  @(34,31), @(10,18), @(11,31), @(10,8),  @(28,39), @(9,8),   @(34,34),
+    @(12,3),  @(26,36), @(10,16), @(12,35), @(11,12), @(15,29), @(10,15), @(12,30), @(11,14), @(14,31),
+    @(10,15), @(12,32), @(12,6),  @(34,26), @(25,32), @(11,11), @(19,28), @(12,8),  @(33,37)
 )
 
 $idx = 0
 $rand = New-Object System.Random
 
-Write-Host "Powered by Kryt" -ForegroundColor Green
-Write-Host "Powered by OnlyFans" -ForegroundColor DarkMagenta
-Write-Host "Nu pune in bara, o sa mearga mai greu" -ForegroundColor Green
-Write-Host "Target: 24-28 CPS | Press F12 to stop" -ForegroundColor Cyan
+Write-Host "Logic: 25.xml ported to PowerShell" -ForegroundColor Cyan
+Write-Host "Triggers: Mouse 4 or Mouse 5 | Exit: F12" -ForegroundColor Gray
 
 while ($true) {
-    if ([Win32]::GetAsyncKeyState(0x7B) -lt 0) { break }  # F12 to stop
+    # Exit if F12 (0x7B) is pressed
+    if ([Win32]::GetAsyncKeyState(0x7B) -lt 0) { break }
 
-    $doLeft  = ([Win32]::GetAsyncKeyState(0x06) -lt 0)  # Mouse 4
-    $doRight = ([Win32]::GetAsyncKeyState(0x05) -lt 0)  # Mouse 5
+    # Triggered by Mouse 4 (0x05) or Mouse 5 (0x06)
+    $isTriggered = ([Win32]::GetAsyncKeyState(0x05) -lt 0) -or ([Win32]::GetAsyncKeyState(0x06) -lt 0)
 
-    if ($doLeft -or $doRight) {
+    if ($isTriggered) {
         $pair = $config[$idx % $config.Count]
         $idx++
 
-        # Improved jitter
-        $jitterDown = $rand.Next(-2, 4)
-        $jitterUp   = $rand.Next(-2, 4)
-        
-        $downDelay = [Math]::Max(1, $pair[0] + $jitterDown)
-        $upDelay   = [Math]::Max(1, $pair[1] + $jitterUp)
+        # Jitter: Applies a small +/- variation to the XML's static values
+        $downDelay = [Math]::Max(1, $pair[0] + $rand.Next(-1, 2))
+        $upDelay   = [Math]::Max(1, $pair[1] + $rand.Next(-1, 2))
 
-        # Click
-        if ($doLeft)  { [Win32]::mouse_event(0x02, 0, 0, 0, 0) }
-        if ($doRight) { [Win32]::mouse_event(0x08, 0, 0, 0, 0) }
-        
+        # Mouse Down
+        [Win32]::mouse_event(0x02, 0, 0, 0, 0)
         [Win32]::Sleep($downDelay)
 
-        if ($doLeft)  { [Win32]::mouse_event(0x04, 0, 0, 0, 0) }
-        if ($doRight) { [Win32]::mouse_event(0x10, 0, 0, 0, 0) }
-
+        # Mouse Up
+        [Win32]::mouse_event(0x04, 0, 0, 0, 0)
         [Win32]::Sleep($upDelay)
-
-        # Extra human delay (helps bypass)
-        if ($rand.Next(1, 13) -eq 1) {
-            [Win32]::Sleep($rand.Next(8, 17))
-        }
     }
     else {
+        # Idle state - low CPU usage
         [Win32]::Sleep(1)
     }
 }
