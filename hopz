@@ -21,7 +21,7 @@ public class Win32 {
 }
 "@
 
-# 1. Force High Precision for the sub-10ms delays in the XML
+# 1. Force High Precision for sub-10ms delays
 [Win32]::timeBeginPeriod(1)
 
 # 2. Prevent Windows Efficiency Mode Throttling
@@ -29,7 +29,6 @@ $process = [System.Diagnostics.Process]::GetCurrentProcess()
 $process.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::RealTime
 
 # 3. Ported Logic from 25.xml
-# Format: @(Hold_Down_Delay, Release_Delay)
 $config = @(
     @(11,16), @(13,33), @(10,13), @(30,26), @(11,13), @(15,29), @(10,15), @(14,31), @(13,10), @(33,35),
     @(10,19), @(10,34), @(12,7),  @(32,34), @(10,17), @(12,32), @(11,6),  @(38,33), @(9,15),  @(13,28),
@@ -43,28 +42,31 @@ $idx = 0
 $rand = New-Object System.Random
 
 Write-Host "Logic: 25.xml Timing Ported" -ForegroundColor Cyan
-Write-Host "Mouse 4 -> Left Click | Mouse 5 -> Right Click" -ForegroundColor Green
+Write-Host "Mouse 4 -> RIGHT CLICK | Mouse 5 -> LEFT CLICK" -ForegroundColor Green
 Write-Host "Press F12 to Exit" -ForegroundColor Yellow
 
 while ($true) {
     if ([Win32]::GetAsyncKeyState(0x7B) -lt 0) { break } # F12 Exit
 
-    $m4 = [Win32]::GetAsyncKeyState(0x05) -lt 0 # Mouse 4
-    $m5 = [Win32]::GetAsyncKeyState(0x06) -lt 0 # Mouse 5
+    # Triggered by Mouse 4 (0x05) or Mouse 5 (0x06)
+    $m4 = [Win32]::GetAsyncKeyState(0x05) -lt 0 
+    $m5 = [Win32]::GetAsyncKeyState(0x06) -lt 0 
 
     if ($m4 -or $m5) {
         $pair = $config[$idx % $config.Count]
         $idx++
 
-        # Jitter: Adds +/- 1ms to the XML delays to bypass basic anti-cheat
+        # Jitter logic from original script
         $downDelay = [Math]::Max(1, $pair[0] + $rand.Next(-1, 2))
         $upDelay   = [Math]::Max(1, $pair[1] + $rand.Next(-1, 2))
 
-        # Determine Button Flags
-        $downFlag = if ($m4) { 0x02 } else { 0x08 } # LeftDown vs RightDown
-        $upFlag   = if ($m4) { 0x04 } else { 0x10 } # LeftUp vs RightUp
+        # Button Assignment Swapped:
+        # If M4 (0x05) is pressed -> Right Click (0x08/0x10)
+        # If M5 (0x06) is pressed -> Left Click (0x02/0x04)
+        $downFlag = if ($m4) { 0x08 } else { 0x02 }
+        $upFlag   = if ($m4) { 0x10 } else { 0x04 }
 
-        # Click Action
+        # Execution
         [Win32]::mouse_event($downFlag, 0, 0, 0, 0)
         [Win32]::Sleep($downDelay)
         [Win32]::mouse_event($upFlag, 0, 0, 0, 0)
