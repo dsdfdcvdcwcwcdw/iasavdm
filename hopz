@@ -14,12 +14,14 @@ public class Win32 {
     [DllImport("kernel32.dll")]
     public static extern void Sleep(uint dwMilliseconds);
 
-    public const int LEFTDOWN = 0x02;
-    public const int LEFTUP   = 0x04;
+    public const int LEFTDOWN  = 0x02;
+    public const int LEFTUP    = 0x04;
+    public const int RIGHTDOWN = 0x08;
+    public const int RIGHTUP   = 0x10;
 }
 "@
 
-# 1. Force High Precision (Crucial for the sub-10ms delays in the XML)
+# 1. Force High Precision for the sub-10ms delays in the XML
 [Win32]::timeBeginPeriod(1)
 
 # 2. Prevent Windows Efficiency Mode Throttling
@@ -40,34 +42,35 @@ $config = @(
 $idx = 0
 $rand = New-Object System.Random
 
-Write-Host "Logic: 25.xml ported to PowerShell" -ForegroundColor Cyan
-Write-Host "Triggers: Mouse 4 or Mouse 5 | Exit: F12" -ForegroundColor Gray
+Write-Host "Logic: 25.xml Timing Ported" -ForegroundColor Cyan
+Write-Host "Mouse 4 -> Left Click | Mouse 5 -> Right Click" -ForegroundColor Green
+Write-Host "Press F12 to Exit" -ForegroundColor Yellow
 
 while ($true) {
-    # Exit if F12 (0x7B) is pressed
-    if ([Win32]::GetAsyncKeyState(0x7B) -lt 0) { break }
+    if ([Win32]::GetAsyncKeyState(0x7B) -lt 0) { break } # F12 Exit
 
-    # Triggered by Mouse 4 (0x05) or Mouse 5 (0x06)
-    $isTriggered = ([Win32]::GetAsyncKeyState(0x05) -lt 0) -or ([Win32]::GetAsyncKeyState(0x06) -lt 0)
+    $m4 = [Win32]::GetAsyncKeyState(0x05) -lt 0 # Mouse 4
+    $m5 = [Win32]::GetAsyncKeyState(0x06) -lt 0 # Mouse 5
 
-    if ($isTriggered) {
+    if ($m4 -or $m5) {
         $pair = $config[$idx % $config.Count]
         $idx++
 
-        # Jitter: Applies a small +/- variation to the XML's static values
+        # Jitter: Adds +/- 1ms to the XML delays to bypass basic anti-cheat
         $downDelay = [Math]::Max(1, $pair[0] + $rand.Next(-1, 2))
         $upDelay   = [Math]::Max(1, $pair[1] + $rand.Next(-1, 2))
 
-        # Mouse Down
-        [Win32]::mouse_event(0x02, 0, 0, 0, 0)
-        [Win32]::Sleep($downDelay)
+        # Determine Button Flags
+        $downFlag = if ($m4) { 0x02 } else { 0x08 } # LeftDown vs RightDown
+        $upFlag   = if ($m4) { 0x04 } else { 0x10 } # LeftUp vs RightUp
 
-        # Mouse Up
-        [Win32]::mouse_event(0x04, 0, 0, 0, 0)
+        # Click Action
+        [Win32]::mouse_event($downFlag, 0, 0, 0, 0)
+        [Win32]::Sleep($downDelay)
+        [Win32]::mouse_event($upFlag, 0, 0, 0, 0)
         [Win32]::Sleep($upDelay)
     }
     else {
-        # Idle state - low CPU usage
         [Win32]::Sleep(1)
     }
 }
